@@ -80,7 +80,13 @@ func newWriterByteBuffer(estimatedLength int) ByteBuffer {
 		estimatedLength = 256 // default buffer size
 	}
 	bytebuf := bytebufPool.Get().(*defaultByteBuffer)
-	bytebuf.buff = dirtmake.Bytes(estimatedLength, estimatedLength)
+	// Allocate extra capacity to reduce the chance of ensureWritable
+	// being triggered after Malloc returns slices that would become invalid.
+	capacity := estimatedLength * 4
+	if capacity < 256 {
+		capacity = 256
+	}
+	bytebuf.buff = dirtmake.Bytes(estimatedLength, capacity)
 	bytebuf.status = BitWritable
 	bytebuf.writeIdx = 0
 	return bytebuf
@@ -91,7 +97,13 @@ func newReaderWriterByteBuffer(estimatedLength int) ByteBuffer {
 		estimatedLength = 256 // default buffer size
 	}
 	bytebuf := bytebufPool.Get().(*defaultByteBuffer)
-	bytebuf.buff = dirtmake.Bytes(estimatedLength, estimatedLength)
+	// Allocate extra capacity to reduce the chance of ensureWritable
+	// being triggered after Malloc returns slices that would become invalid.
+	capacity := estimatedLength * 4
+	if capacity < 256 {
+		capacity = 256
+	}
+	bytebuf.buff = dirtmake.Bytes(estimatedLength, capacity)
 	bytebuf.readIdx = 0
 	bytebuf.writeIdx = 0
 	bytebuf.status = BitReadable | BitWritable
@@ -104,7 +116,9 @@ func (b *defaultByteBuffer) Next(n int) (buf []byte, err error) {
 		return nil, errors.New("unreadable buffer, cannot support Next")
 	}
 	buf, err = b.Peek(n)
-	b.readIdx += n
+	if err == nil {
+		b.readIdx += n
+	}
 	return buf, err
 }
 
